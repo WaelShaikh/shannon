@@ -240,8 +240,19 @@ export async function runClaudePrompt(
   }
 
   // 5. Configure SDK options
+  // Determine model: if routing is used, prefer specific model override
+  let modelName = 'claude-sonnet-4-5-20250929';
+  if (process.env.ROUTER_DEFAULT && process.env.ROUTER_DEFAULT.includes(',')) {
+    // e.g. "ollama,qwen3:4b" -> "qwen3:4b"
+    modelName = process.env.ROUTER_DEFAULT.split(',')[1].trim();
+  } else if (process.env.OLLAMA_MODEL) {
+    modelName = process.env.OLLAMA_MODEL;
+  } else if (process.env.CUSTOM_OPENAI_MODEL) {
+    modelName = process.env.CUSTOM_OPENAI_MODEL;
+  }
+
   const options = {
-    model: 'claude-sonnet-4-5-20250929',
+    model: modelName,
     maxTurns: 10_000,
     cwd: sourceDir,
     permissionMode: 'bypassPermissions' as const,
