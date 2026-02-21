@@ -84,6 +84,11 @@ parse_args() {
       REBUILD=*) REBUILD="${arg#REBUILD=}" ;;
       ROUTER=*) ROUTER="${arg#ROUTER=}" ;;
       WORKSPACE=*) WORKSPACE="${arg#WORKSPACE=}" ;;
+      OLLAMA_BASE_URL=*) OLLAMA_BASE_URL="${arg#OLLAMA_BASE_URL=}" ;;
+      OLLAMA_MODEL=*) OLLAMA_MODEL="${arg#OLLAMA_MODEL=}" ;;
+      CUSTOM_OPENAI_BASE_URL=*) CUSTOM_OPENAI_BASE_URL="${arg#CUSTOM_OPENAI_BASE_URL=}" ;;
+      CUSTOM_OPENAI_API_KEY=*) CUSTOM_OPENAI_API_KEY="${arg#CUSTOM_OPENAI_API_KEY=}" ;;
+      CUSTOM_OPENAI_MODEL=*) CUSTOM_OPENAI_MODEL="${arg#CUSTOM_OPENAI_MODEL=}" ;;
     esac
   done
 }
@@ -224,6 +229,13 @@ cmd_start() {
     export ANTHROPIC_BASE_URL="http://router:3456"
     # Set auth token to match router's APIKEY
     export ANTHROPIC_AUTH_TOKEN="shannon-router-key"
+
+    # Export router-specific vars so docker-compose picks them up
+    export OLLAMA_BASE_URL
+    export OLLAMA_MODEL
+    export CUSTOM_OPENAI_BASE_URL
+    export CUSTOM_OPENAI_API_KEY
+    export CUSTOM_OPENAI_MODEL
   fi
 
   # Ensure audit-logs directory exists with write permissions for container user (UID 1001)
