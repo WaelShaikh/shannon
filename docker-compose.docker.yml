@@ -4,3 +4,7 @@ services:
   worker:
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  router:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
