@@ -55,6 +55,7 @@ export interface ActivityInput {
   configPath?: string;
   outputPath?: string;
   pipelineTestingMode?: boolean;
+  blackboxMode?: boolean;
   workflowId: string;
   sessionId: string;
 }
@@ -104,7 +105,7 @@ async function runAgentActivity(
   agentName: AgentName,
   input: ActivityInput
 ): Promise<AgentMetrics> {
-  const { repoPath, configPath, pipelineTestingMode = false, workflowId, webUrl } = input;
+  const { repoPath, configPath, pipelineTestingMode = false, blackboxMode = false, workflowId, webUrl } = input;
   const startTime = Date.now();
   const attemptNumber = Context.current().info.attempt;
 
@@ -135,6 +136,7 @@ async function runAgentActivity(
         repoPath,
         configPath,
         pipelineTestingMode,
+        blackboxMode,
         attemptNumber,
       },
       auditSession,

@@ -125,6 +125,7 @@ async function interpolateVariables(
   template: string,
   variables: PromptVariables,
   config: DistributedConfig | null = null,
+  blackboxMode: boolean = false,
   logger: ActivityLogger
 ): Promise<string> {
   try {
@@ -150,6 +151,23 @@ async function interpolateVariables(
       .replace(/{{WEB_URL}}/g, variables.webUrl)
       .replace(/{{REPO_PATH}}/g, variables.repoPath)
       .replace(/{{MCP_SERVER}}/g, variables.MCP_SERVER || 'playwright-agent1');
+
+    // Inject Blackbox Mode instructions if enabled
+    if (blackboxMode) {
+      const blackboxInstructions = `
+<blackbox_mode>
+CRITICAL INSTRUCTION: You are operating in BLACK-BOX mode. Source code is NOT available.
+- Ignore all instructions related to source code analysis, Task agents for code reading, or file system exploration.
+- You MUST rely solely on dynamic analysis (browsing, scanning, interacting) using the available tools.
+- Do not attempt to read files or search for code.
+</blackbox_mode>
+`;
+      // Prepend to result so it is seen early
+      result = blackboxInstructions + result;
+
+      // Also ensure {{REPO_PATH}} replacement doesn't confuse agent if it points to empty repo
+      // (The variable replacement happened above, but the instruction overrides the usage)
+    }
 
     if (config) {
       // Handle rules section - if both are empty, use cleaner messaging
@@ -210,6 +228,7 @@ export async function loadPrompt(
   variables: PromptVariables,
   config: DistributedConfig | null = null,
   pipelineTestingMode: boolean = false,
+  blackboxMode: boolean = false,
   logger: ActivityLogger
 ): Promise<string> {
   try {
@@ -250,7 +269,7 @@ export async function loadPrompt(
     template = await processIncludes(template, promptsDir);
 
     // 5. Interpolate variables and return final prompt
-    return await interpolateVariables(template, enhancedVariables, config, logger);
+    return await interpolateVariables(template, enhancedVariables, config, blackboxMode, logger);
   } catch (error) {
     if (error instanceof PentestError) {
       throw error;

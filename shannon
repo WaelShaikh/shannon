@@ -136,9 +136,9 @@ cmd_start() {
   parse_args "$@"
 
   # Validate required vars
-  if [ -z "$URL" ] || [ -z "$REPO" ]; then
-    echo "ERROR: URL and REPO are required"
-    echo "Usage: ./shannon start URL=<url> REPO=<name>"
+  if [ -z "$URL" ]; then
+    echo "ERROR: URL is required"
+    echo "Usage: ./shannon start URL=<url> [REPO=<name>]"
     exit 1
   fi
 
@@ -155,22 +155,40 @@ cmd_start() {
   fi
 
   # Determine container path for REPO
+  # - If REPO is missing, create a temporary blackbox repo
   # - If REPO is already a container path (/benchmarks/*, /repos/*), use as-is
   # - Otherwise, treat as a folder name under ./repos/ (mounted at /repos in container)
-  case "$REPO" in
-    /benchmarks/*|/repos/*)
-      CONTAINER_REPO="$REPO"
-      ;;
-    *)
-      if [ ! -d "./repos/$REPO" ]; then
-        echo "ERROR: Repository not found at ./repos/$REPO"
-        echo ""
-        echo "Place your target repository under the ./repos/ directory"
-        exit 1
-      fi
-      CONTAINER_REPO="/repos/$REPO"
-      ;;
-  esac
+
+  if [ -z "$REPO" ]; then
+    echo "No REPO provided. Running in BLACKBOX mode (no source code)..."
+    REPO="blackbox-$(date +%s)"
+    mkdir -p "./repos/$REPO"
+
+    # Initialize empty git repo for checkpointing
+    if command -v git &>/dev/null; then
+      (cd "./repos/$REPO" && git init -q && git config user.email "blackbox@shannon" && git config user.name "Blackbox Mode" && git commit --allow-empty -m "Initial commit")
+    else
+      echo "WARNING: git not found. Checkpointing may not work."
+    fi
+
+    CONTAINER_REPO="/repos/$REPO"
+    BLACKBOX_FLAG="--blackbox"
+  else
+    case "$REPO" in
+      /benchmarks/*|/repos/*)
+        CONTAINER_REPO="$REPO"
+        ;;
+      *)
+        if [ ! -d "./repos/$REPO" ]; then
+          echo "ERROR: Repository not found at ./repos/$REPO"
+          echo ""
+          echo "Place your target repository under the ./repos/ directory"
+          exit 1
+        fi
+        CONTAINER_REPO="/repos/$REPO"
+        ;;
+    esac
+  fi
 
   # Handle custom OUTPUT directory
   # Export OUTPUT_DIR for docker-compose volume mount BEFORE starting containers
@@ -224,6 +242,7 @@ cmd_start() {
   # Build optional args
   ARGS=""
   [ -n "$CONFIG" ] && ARGS="$ARGS --config $CONFIG"
+  [ -n "$BLACKBOX_FLAG" ] && ARGS="$ARGS $BLACKBOX_FLAG"
 
   # Pass container path for output (where OUTPUT_DIR is mounted)
   # Also pass display path so client can show the host path to user

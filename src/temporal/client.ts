@@ -127,6 +127,7 @@ function showUsage(): void {
   console.log('  --config <path>       Configuration file path');
   console.log('  --output <path>       Output directory for audit logs');
   console.log('  --pipeline-testing    Use minimal prompts for fast testing');
+  console.log('  --blackbox            Run in black-box mode (no source code)');
   console.log('  --workspace <name>    Resume from existing workspace');
   console.log(
     '  --workflow-id <id>    Custom workflow ID (default: shannon-<timestamp>)'
@@ -148,6 +149,7 @@ interface CliArgs {
   outputPath?: string;
   displayOutputPath?: string;
   pipelineTestingMode: boolean;
+  blackboxMode: boolean;
   customWorkflowId?: string;
   waitForCompletion: boolean;
   resumeFromWorkspace?: string;
@@ -165,6 +167,7 @@ function parseCliArgs(argv: string[]): CliArgs {
   let outputPath: string | undefined;
   let displayOutputPath: string | undefined;
   let pipelineTestingMode = false;
+  let blackboxMode = false;
   let customWorkflowId: string | undefined;
   let waitForCompletion = false;
   let resumeFromWorkspace: string | undefined;
@@ -197,6 +200,8 @@ function parseCliArgs(argv: string[]): CliArgs {
       }
     } else if (arg === '--pipeline-testing') {
       pipelineTestingMode = true;
+    } else if (arg === '--blackbox') {
+      blackboxMode = true;
     } else if (arg === '--workspace') {
       const nextArg = argv[i + 1];
       if (nextArg && !nextArg.startsWith('-')) {
@@ -221,7 +226,7 @@ function parseCliArgs(argv: string[]): CliArgs {
   }
 
   return {
-    webUrl, repoPath, pipelineTestingMode, waitForCompletion,
+    webUrl, repoPath, pipelineTestingMode, blackboxMode, waitForCompletion,
     ...(configPath && { configPath }),
     ...(outputPath && { outputPath }),
     ...(displayOutputPath && { displayOutputPath }),
@@ -315,6 +320,7 @@ function buildPipelineInput(args: CliArgs, workspace: WorkspaceResolution): Pipe
     ...(args.configPath && { configPath: args.configPath }),
     ...(args.outputPath && { outputPath: args.outputPath }),
     ...(args.pipelineTestingMode && { pipelineTestingMode: args.pipelineTestingMode }),
+    ...(args.blackboxMode && { blackboxMode: args.blackboxMode }),
     ...(workspace.isResume && args.resumeFromWorkspace && { resumeFromWorkspace: args.resumeFromWorkspace }),
     ...(workspace.terminatedWorkflows.length > 0 && { terminatedWorkflows: workspace.terminatedWorkflows }),
   };
@@ -339,6 +345,9 @@ function displayWorkflowInfo(args: CliArgs, workspace: WorkspaceResolution): voi
   }
   if (args.pipelineTestingMode) {
     console.log(`  Mode:       Pipeline Testing`);
+  }
+  if (args.blackboxMode) {
+    console.log(`  Mode:       Blackbox (No Source Code)`);
   }
   console.log();
 }

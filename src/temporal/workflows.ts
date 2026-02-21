@@ -142,6 +142,9 @@ export async function pentestPipelineWorkflow(
     ...(input.pipelineTestingMode !== undefined && {
       pipelineTestingMode: input.pipelineTestingMode,
     }),
+    ...(input.blackboxMode !== undefined && {
+      blackboxMode: input.blackboxMode,
+    }),
   };
 
   let resumeState: ResumeState | null = null;
