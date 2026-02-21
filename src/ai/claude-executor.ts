@@ -244,7 +244,10 @@ export async function runClaudePrompt(
   let modelName = 'claude-sonnet-4-5-20250929';
   if (process.env.ROUTER_DEFAULT && process.env.ROUTER_DEFAULT.includes(',')) {
     // e.g. "ollama,qwen3:4b" -> "qwen3:4b"
-    modelName = process.env.ROUTER_DEFAULT.split(',')[1].trim();
+    const parts = process.env.ROUTER_DEFAULT.split(',');
+    if (parts.length > 1 && parts[1]) {
+      modelName = parts[1].trim();
+    }
   } else if (process.env.OLLAMA_MODEL) {
     modelName = process.env.OLLAMA_MODEL;
   } else if (process.env.CUSTOM_OPENAI_MODEL) {
