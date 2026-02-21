@@ -95,6 +95,16 @@ parse_args() {
       CUSTOM_OPENAI_MODEL=*) CUSTOM_OPENAI_MODEL="${arg#CUSTOM_OPENAI_MODEL=}" ;;
     esac
   done
+
+  # Strip /chat/completions suffix from provider URLs if present to avoid doubling by router
+  if [ -n "$OLLAMA_BASE_URL" ]; then
+    OLLAMA_BASE_URL="${OLLAMA_BASE_URL%/chat/completions}"
+    OLLAMA_BASE_URL="${OLLAMA_BASE_URL%/}"
+  fi
+  if [ -n "$CUSTOM_OPENAI_BASE_URL" ]; then
+    CUSTOM_OPENAI_BASE_URL="${CUSTOM_OPENAI_BASE_URL%/chat/completions}"
+    CUSTOM_OPENAI_BASE_URL="${CUSTOM_OPENAI_BASE_URL%/}"
+  fi
 }
 
 # Check if Temporal is running and healthy
