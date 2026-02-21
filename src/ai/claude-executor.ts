@@ -281,6 +281,18 @@ export async function runClaudePrompt(
   logger.info(`[DEBUG] Model: ${options.model}`);
   logger.info(`[DEBUG] SDK Env Keys: ${Object.keys(options.env || {}).join(', ')}`);
 
+  // Force process.env to ensure SDK picks up the router URL
+  // The SDK might rely on process.env instead of options.env for its own client initialization
+  if (sdkEnv.ANTHROPIC_BASE_URL) {
+    process.env.ANTHROPIC_BASE_URL = sdkEnv.ANTHROPIC_BASE_URL;
+  }
+  if (sdkEnv.ANTHROPIC_API_KEY) {
+    process.env.ANTHROPIC_API_KEY = sdkEnv.ANTHROPIC_API_KEY;
+  }
+  if (sdkEnv.ANTHROPIC_AUTH_TOKEN) {
+    process.env.ANTHROPIC_AUTH_TOKEN = sdkEnv.ANTHROPIC_AUTH_TOKEN;
+  }
+
   try {
     // 6. Process the message stream
     const messageLoopResult = await processMessageStream(

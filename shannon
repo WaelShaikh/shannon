@@ -168,8 +168,8 @@ cmd_start() {
   # Check for API key (router mode can use alternative provider API keys)
   if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
     if [ "$ROUTER" = "true" ] && { [ -n "$OPENAI_API_KEY" ] || [ -n "$OPENROUTER_API_KEY" ] || [ -n "$OLLAMA_BASE_URL" ] || [ -n "$CUSTOM_OPENAI_BASE_URL" ]; }; then
-      # Router mode with alternative provider - set a placeholder for SDK init
-      export ANTHROPIC_API_KEY="router-mode"
+      # Router mode with alternative provider - set the key expected by the router
+      export ANTHROPIC_API_KEY="shannon-router-key"
     else
       echo "ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in .env"
       echo "       (or use ROUTER=true with OPENAI_API_KEY, OPENROUTER_API_KEY, OLLAMA_BASE_URL, or CUSTOM_OPENAI_BASE_URL)"
