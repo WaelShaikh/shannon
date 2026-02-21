@@ -115,7 +115,7 @@ export class AgentExecutionService {
         { webUrl, repoPath },
         distributedConfig,
         pipelineTestingMode,
-        blackboxMode,
+        blackboxMode || false,
         logger
       );
     } catch (error) {
