@@ -256,6 +256,13 @@ cmd_start() {
     export CUSTOM_OPENAI_BASE_URL
     export CUSTOM_OPENAI_API_KEY
     export CUSTOM_OPENAI_MODEL
+
+    if [ -n "$DEBUG" ]; then
+      echo "[DEBUG] Router Config:"
+      echo "  OLLAMA_BASE_URL=${OLLAMA_BASE_URL}"
+      echo "  OLLAMA_MODEL=${OLLAMA_MODEL}"
+      echo "  ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}"
+    fi
   fi
 
   # Ensure audit-logs directory exists with write permissions for container user (UID 1001)

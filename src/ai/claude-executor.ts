@@ -275,6 +275,12 @@ export async function runClaudePrompt(
 
   progress.start();
 
+  logger.info(`[DEBUG] SDK Configuration:`);
+  logger.info(`[DEBUG] ANTHROPIC_BASE_URL (process): ${process.env.ANTHROPIC_BASE_URL}`);
+  logger.info(`[DEBUG] ANTHROPIC_BASE_URL (sdkEnv): ${sdkEnv.ANTHROPIC_BASE_URL}`);
+  logger.info(`[DEBUG] Model: ${options.model}`);
+  logger.info(`[DEBUG] SDK Env Keys: ${Object.keys(options.env || {}).join(', ')}`);
+
   try {
     // 6. Process the message stream
     const messageLoopResult = await processMessageStream(
