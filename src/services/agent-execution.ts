@@ -53,6 +53,7 @@ export interface AgentExecutionInput {
   repoPath: string;
   configPath?: string | undefined;
   pipelineTestingMode?: boolean | undefined;
+  blackboxMode?: boolean | undefined;
   attemptNumber: number;
 }
 
@@ -96,7 +97,7 @@ export class AgentExecutionService {
     auditSession: AuditSession,
     logger: ActivityLogger
   ): Promise<Result<AgentEndResult, PentestError>> {
-    const { webUrl, repoPath, configPath, pipelineTestingMode = false, attemptNumber } = input;
+    const { webUrl, repoPath, configPath, pipelineTestingMode = false, blackboxMode = false, attemptNumber } = input;
 
     // 1. Load config (if provided)
     const configResult = await this.configLoader.loadOptional(configPath);
@@ -114,6 +115,7 @@ export class AgentExecutionService {
         { webUrl, repoPath },
         distributedConfig,
         pipelineTestingMode,
+        blackboxMode || false,
         logger
       );
     } catch (error) {

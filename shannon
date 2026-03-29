@@ -2,6 +2,10 @@
 # Shannon CLI - AI Penetration Testing Framework
 
 set -e
+# Enable debug logging if requested or if troubleshooting
+if [ -n "$DEBUG" ]; then
+  set -x
+fi
 
 # Prevent MSYS from converting Unix paths (e.g. /repos/my-repo) to Windows paths
 case "$OSTYPE" in
@@ -84,12 +88,28 @@ parse_args() {
       REBUILD=*) REBUILD="${arg#REBUILD=}" ;;
       ROUTER=*) ROUTER="${arg#ROUTER=}" ;;
       WORKSPACE=*) WORKSPACE="${arg#WORKSPACE=}" ;;
+      OLLAMA_BASE_URL=*) OLLAMA_BASE_URL="${arg#OLLAMA_BASE_URL=}" ;;
+      OLLAMA_MODEL=*) OLLAMA_MODEL="${arg#OLLAMA_MODEL=}" ;;
+      CUSTOM_OPENAI_BASE_URL=*) CUSTOM_OPENAI_BASE_URL="${arg#CUSTOM_OPENAI_BASE_URL=}" ;;
+      CUSTOM_OPENAI_API_KEY=*) CUSTOM_OPENAI_API_KEY="${arg#CUSTOM_OPENAI_API_KEY=}" ;;
+      CUSTOM_OPENAI_MODEL=*) CUSTOM_OPENAI_MODEL="${arg#CUSTOM_OPENAI_MODEL=}" ;;
     esac
   done
+
+  # Strip /chat/completions suffix from provider URLs if present to avoid doubling by router
+  if [ -n "$OLLAMA_BASE_URL" ]; then
+    OLLAMA_BASE_URL="${OLLAMA_BASE_URL%/chat/completions}"
+    OLLAMA_BASE_URL="${OLLAMA_BASE_URL%/}"
+  fi
+  if [ -n "$CUSTOM_OPENAI_BASE_URL" ]; then
+    CUSTOM_OPENAI_BASE_URL="${CUSTOM_OPENAI_BASE_URL%/chat/completions}"
+    CUSTOM_OPENAI_BASE_URL="${CUSTOM_OPENAI_BASE_URL%/}"
+  fi
 }
 
 # Check if Temporal is running and healthy
 is_temporal_ready() {
+  if [ -n "$DEBUG" ]; then echo "Running: docker compose -f $COMPOSE_FILE $COMPOSE_OVERRIDE exec -T temporal ..."; fi
   docker compose -f "$COMPOSE_FILE" $COMPOSE_OVERRIDE exec -T temporal \
     temporal operator cluster health --address localhost:7233 2>/dev/null | grep -q "SERVING"
 }
@@ -100,6 +120,7 @@ ensure_containers() {
   # Docker compose will only recreate if the mount actually changed
   if [ -n "$OUTPUT_DIR" ]; then
     echo "Ensuring worker has correct output mount..."
+    if [ -n "$DEBUG" ]; then echo "Running: docker compose -f $COMPOSE_FILE $COMPOSE_OVERRIDE up -d worker"; fi
     docker compose -f "$COMPOSE_FILE" $COMPOSE_OVERRIDE up -d worker 2>/dev/null || true
   fi
 
@@ -113,8 +134,10 @@ ensure_containers() {
   if [ "$REBUILD" = "true" ]; then
     # Force rebuild without cache (use when code changes aren't being picked up)
     echo "Rebuilding with --no-cache..."
+    if [ -n "$DEBUG" ]; then echo "Running: docker compose -f $COMPOSE_FILE $COMPOSE_OVERRIDE build --no-cache worker"; fi
     docker compose -f "$COMPOSE_FILE" $COMPOSE_OVERRIDE build --no-cache worker
   fi
+  if [ -n "$DEBUG" ]; then echo "Running: docker compose -f $COMPOSE_FILE $COMPOSE_OVERRIDE up -d --build"; fi
   docker compose -f "$COMPOSE_FILE" $COMPOSE_OVERRIDE up -d --build
 
   # Wait for Temporal to be ready
@@ -136,41 +159,59 @@ cmd_start() {
   parse_args "$@"
 
   # Validate required vars
-  if [ -z "$URL" ] || [ -z "$REPO" ]; then
-    echo "ERROR: URL and REPO are required"
-    echo "Usage: ./shannon start URL=<url> REPO=<name>"
+  if [ -z "$URL" ]; then
+    echo "ERROR: URL is required"
+    echo "Usage: ./shannon start URL=<url> [REPO=<name>]"
     exit 1
   fi
 
   # Check for API key (router mode can use alternative provider API keys)
   if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
-    if [ "$ROUTER" = "true" ] && { [ -n "$OPENAI_API_KEY" ] || [ -n "$OPENROUTER_API_KEY" ]; }; then
-      # Router mode with alternative provider - set a placeholder for SDK init
-      export ANTHROPIC_API_KEY="router-mode"
+    if [ "$ROUTER" = "true" ] && { [ -n "$OPENAI_API_KEY" ] || [ -n "$OPENROUTER_API_KEY" ] || [ -n "$OLLAMA_BASE_URL" ] || [ -n "$CUSTOM_OPENAI_BASE_URL" ]; }; then
+      # Router mode with alternative provider - set the key expected by the router
+      export ANTHROPIC_API_KEY="shannon-router-key"
     else
       echo "ERROR: Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in .env"
-      echo "       (or use ROUTER=true with OPENAI_API_KEY or OPENROUTER_API_KEY)"
+      echo "       (or use ROUTER=true with OPENAI_API_KEY, OPENROUTER_API_KEY, OLLAMA_BASE_URL, or CUSTOM_OPENAI_BASE_URL)"
       exit 1
     fi
   fi
 
   # Determine container path for REPO
+  # - If REPO is missing, create a temporary blackbox repo
   # - If REPO is already a container path (/benchmarks/*, /repos/*), use as-is
   # - Otherwise, treat as a folder name under ./repos/ (mounted at /repos in container)
-  case "$REPO" in
-    /benchmarks/*|/repos/*)
-      CONTAINER_REPO="$REPO"
-      ;;
-    *)
-      if [ ! -d "./repos/$REPO" ]; then
-        echo "ERROR: Repository not found at ./repos/$REPO"
-        echo ""
-        echo "Place your target repository under the ./repos/ directory"
-        exit 1
-      fi
-      CONTAINER_REPO="/repos/$REPO"
-      ;;
-  esac
+
+  if [ -z "$REPO" ]; then
+    echo "No REPO provided. Running in BLACKBOX mode (no source code)..."
+    REPO="blackbox-$(date +%s)"
+    mkdir -p "./repos/$REPO"
+
+    # Initialize empty git repo for checkpointing
+    if command -v git &>/dev/null; then
+      (cd "./repos/$REPO" && git init -q && git config user.email "blackbox@shannon" && git config user.name "Blackbox Mode" && git commit --allow-empty -m "Initial commit")
+    else
+      echo "WARNING: git not found. Checkpointing may not work."
+    fi
+
+    CONTAINER_REPO="/repos/$REPO"
+    BLACKBOX_FLAG="--blackbox"
+  else
+    case "$REPO" in
+      /benchmarks/*|/repos/*)
+        CONTAINER_REPO="$REPO"
+        ;;
+      *)
+        if [ ! -d "./repos/$REPO" ]; then
+          echo "ERROR: Repository not found at ./repos/$REPO"
+          echo ""
+          echo "Place your target repository under the ./repos/ directory"
+          exit 1
+        fi
+        CONTAINER_REPO="/repos/$REPO"
+        ;;
+    esac
+  fi
 
   # Handle custom OUTPUT directory
   # Export OUTPUT_DIR for docker-compose volume mount BEFORE starting containers
@@ -184,17 +225,19 @@ cmd_start() {
   # Handle ROUTER flag - start claude-code-router for multi-model support
   if [ "$ROUTER" = "true" ]; then
     # Check if router is already running
+    if [ -n "$DEBUG" ]; then echo "Checking router status..."; fi
     if docker compose -f "$COMPOSE_FILE" $COMPOSE_OVERRIDE --profile router ps router 2>/dev/null | grep -q "running"; then
       echo "Router already running, skipping startup..."
     else
       echo "Starting claude-code-router..."
 
       # Check for provider API keys
-      if [ -z "$OPENAI_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ]; then
-        echo "WARNING: No provider API key set (OPENAI_API_KEY or OPENROUTER_API_KEY). Router may not work."
+      if [ -z "$OPENAI_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ] && [ -z "$OLLAMA_BASE_URL" ] && [ -z "$CUSTOM_OPENAI_BASE_URL" ]; then
+        echo "WARNING: No provider configuration set (OPENAI, OPENROUTER, OLLAMA, or CUSTOM). Router may not work."
       fi
 
       # Start router with profile
+      if [ -n "$DEBUG" ]; then echo "Running: docker compose -f $COMPOSE_FILE $COMPOSE_OVERRIDE --profile router up -d router"; fi
       docker compose -f "$COMPOSE_FILE" $COMPOSE_OVERRIDE --profile router up -d router
 
       # Give router a few seconds to start (health check disabled for now - TODO: debug later)
@@ -206,6 +249,20 @@ cmd_start() {
     export ANTHROPIC_BASE_URL="http://router:3456"
     # Set auth token to match router's APIKEY
     export ANTHROPIC_AUTH_TOKEN="shannon-router-key"
+
+    # Export router-specific vars so docker-compose picks them up
+    export OLLAMA_BASE_URL
+    export OLLAMA_MODEL
+    export CUSTOM_OPENAI_BASE_URL
+    export CUSTOM_OPENAI_API_KEY
+    export CUSTOM_OPENAI_MODEL
+
+    if [ -n "$DEBUG" ]; then
+      echo "[DEBUG] Router Config:"
+      echo "  OLLAMA_BASE_URL=${OLLAMA_BASE_URL}"
+      echo "  OLLAMA_MODEL=${OLLAMA_MODEL}"
+      echo "  ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}"
+    fi
   fi
 
   # Ensure audit-logs directory exists with write permissions for container user (UID 1001)
@@ -224,6 +281,7 @@ cmd_start() {
   # Build optional args
   ARGS=""
   [ -n "$CONFIG" ] && ARGS="$ARGS --config $CONFIG"
+  [ -n "$BLACKBOX_FLAG" ] && ARGS="$ARGS $BLACKBOX_FLAG"
 
   # Pass container path for output (where OUTPUT_DIR is mounted)
   # Also pass display path so client can show the host path to user

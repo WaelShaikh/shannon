@@ -231,10 +231,31 @@ export async function runClaudePrompt(
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
     sdkEnv.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
   }
+  // Router support: Pass custom base URL and auth token to SDK if present
+  if (process.env.ANTHROPIC_BASE_URL) {
+    sdkEnv.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL;
+  }
+  if (process.env.ANTHROPIC_AUTH_TOKEN) {
+    sdkEnv.ANTHROPIC_AUTH_TOKEN = process.env.ANTHROPIC_AUTH_TOKEN;
+  }
 
   // 5. Configure SDK options
+  // Determine model: if routing is used, prefer specific model override
+  let modelName = 'claude-sonnet-4-5-20250929';
+  if (process.env.ROUTER_DEFAULT && process.env.ROUTER_DEFAULT.includes(',')) {
+    // e.g. "ollama,qwen3:4b" -> "qwen3:4b"
+    const parts = process.env.ROUTER_DEFAULT.split(',');
+    if (parts.length > 1 && parts[1]) {
+      modelName = parts[1].trim();
+    }
+  } else if (process.env.OLLAMA_MODEL) {
+    modelName = process.env.OLLAMA_MODEL;
+  } else if (process.env.CUSTOM_OPENAI_MODEL) {
+    modelName = process.env.CUSTOM_OPENAI_MODEL;
+  }
+
   const options = {
-    model: 'claude-sonnet-4-5-20250929',
+    model: modelName,
     maxTurns: 10_000,
     cwd: sourceDir,
     permissionMode: 'bypassPermissions' as const,
@@ -253,6 +274,24 @@ export async function runClaudePrompt(
   let totalCost = 0;
 
   progress.start();
+
+  logger.info(`[DEBUG] SDK Configuration:`);
+  logger.info(`[DEBUG] ANTHROPIC_BASE_URL (process): ${process.env.ANTHROPIC_BASE_URL}`);
+  logger.info(`[DEBUG] ANTHROPIC_BASE_URL (sdkEnv): ${sdkEnv.ANTHROPIC_BASE_URL}`);
+  logger.info(`[DEBUG] Model: ${options.model}`);
+  logger.info(`[DEBUG] SDK Env Keys: ${Object.keys(options.env || {}).join(', ')}`);
+
+  // Force process.env to ensure SDK picks up the router URL
+  // The SDK might rely on process.env instead of options.env for its own client initialization
+  if (sdkEnv.ANTHROPIC_BASE_URL) {
+    process.env.ANTHROPIC_BASE_URL = sdkEnv.ANTHROPIC_BASE_URL;
+  }
+  if (sdkEnv.ANTHROPIC_API_KEY) {
+    process.env.ANTHROPIC_API_KEY = sdkEnv.ANTHROPIC_API_KEY;
+  }
+  if (sdkEnv.ANTHROPIC_AUTH_TOKEN) {
+    process.env.ANTHROPIC_AUTH_TOKEN = sdkEnv.ANTHROPIC_AUTH_TOKEN;
+  }
 
   try {
     // 6. Process the message stream

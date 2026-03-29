@@ -9,6 +9,7 @@ export interface PipelineInput {
   configPath?: string;
   outputPath?: string;
   pipelineTestingMode?: boolean;
+  blackboxMode?: boolean;
   workflowId?: string; // Used for audit correlation
   sessionId?: string; // Workspace directory name (distinct from workflowId for named workspaces)
   resumeFromWorkspace?: string; // Workspace name to resume from
